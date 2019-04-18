@@ -18,6 +18,7 @@ Make sure you have the latest version of Lumerical installed (it won't work corr
 ```bash
 cd your/install/folder/
 git clone https://github.com/chriskeraly/LumOpt.git
+cd LumOpt
 python setup.py develop
 ```
 
