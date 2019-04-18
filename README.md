@@ -15,10 +15,15 @@ It is all here: https://lumopt.readthedocs.io/en/latest/
 
 Make sure you have the latest version of Lumerical installed (it won't work correctly with older versions), and that lumapi (the python api) works
 
+If you are using `conda`, first create a new environment `lumopt` and install `python` and `jupyter`.
+
+To install our branch of `lumopt`,
+
 ```bash
+conda activate lumopt # optional
 cd your/install/folder/
-git clone https://github.com/chriskeraly/LumOpt.git
-cd LumOpt
+git clone -b brar-kats https://github.com/gholdman1/lumopt.git
+cd lumopt
 python setup.py develop
 ```
 
