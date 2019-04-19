@@ -52,60 +52,6 @@ class PointElectric(object):
     def add_to_sim(self, sim):
         ModeMatch.add_mode_expansion_monitor(sim, self.monitor_name, self.mode_expansion_monitor_name, self.mode_number)
 
-    @staticmethod
-    def add_mode_expansion_monitor(sim, monitor_name, mode_expansion_monitor_name, mode_number):
-        # modify existing DFT monitor
-        if sim.fdtd.getnamednumber(monitor_name) != 1:
-            raise UserWarning('monitor could not be found or the specified name is not unique.')
-        sim.fdtd.setnamed(monitor_name, 'override global monitor settings', False)
-        # append a mode expansion monitor to the existing DFT monitor
-        if sim.fdtd.getnamednumber(mode_expansion_monitor_name) == 0:
-            sim.fdtd.addmodeexpansion()
-            sim.fdtd.set('name', mode_expansion_monitor_name)
-            sim.fdtd.setexpansion(mode_expansion_monitor_name, monitor_name)
-            sim.fdtd.setnamed(mode_expansion_monitor_name, 'mode selection', 'user select')
-            sim.fdtd.setnamed(mode_expansion_monitor_name, 'auto update before analysis', True)
-            sim.fdtd.setnamed(mode_expansion_monitor_name, 'override global monitor settings', False)
-            # properties that must be synchronized
-            props = ['monitor type']
-            monitor_type = sim.fdtd.getnamed(monitor_name, 'monitor type')
-            geo_props, normal = ModeMatch.cross_section_monitor_props(monitor_type)
-            props.extend(geo_props)
-            # synchronize properties
-            for prop_name in props:
-                prop_val = sim.fdtd.getnamed(monitor_name, prop_name)
-                sim.fdtd.setnamed(mode_expansion_monitor_name, prop_name, prop_val)
-            # select mode
-            sim.fdtd.select(mode_expansion_monitor_name)
-            sim.fdtd.updatemodes(mode_number)
-        else:
-            raise UserWarning('there is already a expansion monitor with the same name.')
-
-    @staticmethod
-    def cross_section_monitor_props(monitor_type):
-        geometric_props = ['x', 'y', 'z']
-        normal = ''
-        if monitor_type == '2D X-normal':
-            geometric_props.extend(['y span','z span'])
-            normal = 'x'
-        elif monitor_type == '2D Y-normal':
-            geometric_props.extend(['x span','z span'])
-            normal = 'y'
-        elif monitor_type == '2D Z-normal':
-            geometric_props.extend(['x span','y span'])
-            normal = 'z'
-        elif monitor_type == 'Linear X':
-            geometric_props.append('x span')
-            normal = 'y'
-        elif monitor_type == 'Linear Y':
-            geometric_props.append('y span')
-            normal = 'x'
-        elif monitor_type == 'Linear Z':
-            geometric_props.append('z span')
-        else:
-            raise UserWarning('monitor should be 2D or linear for a mode expansion to be meaningful.')
-        return geometric_props, normal
-
     def get_fom(self, sim):
         trans_coeff = ModeMatch.get_transmission_coefficient(sim, self.direction, self.monitor_name, self.mode_expansion_monitor_name)
         self.wavelengths = ModeMatch.get_wavelengths(sim)
@@ -126,6 +72,12 @@ class PointElectric(object):
         return Wavelengths(sim.fdtd.getglobalsource('wavelength start'), 
                            sim.fdtd.getglobalsource('wavelength stop'),
                            sim.fdtd.getglobalmonitor('frequency points')).asarray()
+
+
+    @staticmethod
+    def get_E_field(sim, monitor_name):
+        pass
+
 
     @staticmethod
     def get_transmission_coefficient(sim, direction, monitor_name, mode_exp_monitor_name):
@@ -162,8 +114,20 @@ class PointElectric(object):
         return fom.real
 
     def add_adjoint_sources(self, sim):
+        """
+        Adds 2 or 3 dipole sources at the location of the figure of merit
+        """
 
-        PointElectric.add_dipole_source(sim,monitor_name, source_name,direction,phase)
+        # Only address the relevant directions
+        if sim.getnamed('FDTD','dimension')=='3D':
+            dirs = ('x','y','z')
+        if sim.getnamed('FDTD','dimension')=='2D':
+            dirs = ('x','y')
+
+        for cartesian in dirs:
+            PointElectric.add_dipole_source(sim,self.monitor_name,
+                                        self.adjoint_source_name,
+                                        direction,phase,cartesian)
         ### Old code
         #adjoint_injection_direction = 'Backward' if self.direction == 'Forward' else 'Forward'
         #ModeMatch.addsource(sim, self.monitor_name, self.adjoint_source_name, adjoint_injection_direction, self.mode_number)
