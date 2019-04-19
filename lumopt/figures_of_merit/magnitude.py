@@ -162,26 +162,40 @@ class PointElectric(object):
         return fom.real
 
     def add_adjoint_sources(self, sim):
-        adjoint_injection_direction = 'Backward' if self.direction == 'Forward' else 'Forward'
-        ModeMatch.add_mode_source(sim, self.monitor_name, self.adjoint_source_name, adjoint_injection_direction, self.mode_number)
+
+        PointElectric.add_dipole_source(sim,monitor_name, source_name,direction,phase)
+        ### Old code
+        #adjoint_injection_direction = 'Backward' if self.direction == 'Forward' else 'Forward'
+        #ModeMatch.addsource(sim, self.monitor_name, self.adjoint_source_name, adjoint_injection_direction, self.mode_number)
 
     @staticmethod
-    def add_mode_source(sim, monitor_name, source_name, direction, mode_number):
-        sim.fdtd.addmode()
+    def add_dipole_source(sim, monitor_name, source_name, amplitude, phase, cartesian):
+        '''
+        Places a dipole at the location of a point monitor 'monitor_name'
+        '''
+        sim.fdtd.adddipole()
         sim.fdtd.set('name', source_name)
-        monitor_type = sim.fdtd.getnamed(monitor_name, 'monitor type')
-        geo_props, normal = ModeMatch.cross_section_monitor_props(monitor_type)
-        sim.fdtd.setnamed(source_name, 'injection axis', normal.lower() + '-axis')
-        for prop_name in geo_props:
-            prop_val = sim.fdtd.getnamed(monitor_name, prop_name)
-            sim.fdtd.setnamed(source_name, prop_name, prop_val)
+
+        for coord in ('x','y','z'):
+            monitor_coord=sim.fdtd.getnamed(monitor_name,coord)
+            sim.fdtd.setnamed(source_name,coord,monitor_coord)
+
+        sim.fdtd.setnamed(source_name,'amplitude',amplitude)
+        sim.fdtd.setnamed(source_name,'phase',phase)
+
+        # Rotate dipole to point in cartesian direction
+        if cartesian=='z':
+            sim.fdtd.setnamed(source_name,'theta',0)
+            sim.fdtd.setnamed(source_name,'phi',0)
+        if cartesian=='x':
+            sim.fdtd.setnamed(source_name,'theta',90)
+            sim.fdtd.setnamed(source_name,'phi',0)
+        if cartesian=='y':
+            sim.fdtd.setnamed(source_name,'theta',90)
+            sim.fdtd.setnamed(source_name,'phi',90)
+
         sim.fdtd.setnamed(source_name, 'override global source settings', False)
-        sim.fdtd.setnamed(source_name, 'direction', direction)
-        sim.fdtd.setnamed(source_name, 'multifrequency mode calculation', True)
         sim.fdtd.setnamed(source_name, 'frequency points', sim.fdtd.getglobalmonitor('frequency points'))
-        sim.fdtd.setnamed(source_name, 'mode selection', 'user select')
-        sim.fdtd.select(source_name)
-        sim.fdtd.updatesourcemode(mode_number)
 
     def fom_gradient_wavelength_integral(self, T_fwd_partial_derivs_vs_wl, wl):
         assert T_fwd_partial_derivs_vs_wl.shape[0] == wl.size
