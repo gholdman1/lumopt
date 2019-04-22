@@ -234,6 +234,8 @@ class Optimization(SuperOptimization):
             fom_partial_derivs_vs_wl = self.geometry.calculate_gradients(self.gradient_fields)
             wl = self.gradient_fields.forward_fields.wl
             self.gradients = self.fom.fom_gradient_wavelength_integral(fom_partial_derivs_vs_wl.transpose(), wl)
+        
+        print('Gradients: ', self.gradients)
         return self.gradients
 
     @staticmethod
