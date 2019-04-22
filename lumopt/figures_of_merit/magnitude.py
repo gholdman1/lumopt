@@ -10,6 +10,7 @@ import scipy.constants
 import lumapi
 
 from lumopt.utilities.wavelengths import Wavelengths
+from lumopt.lumerical_methods.lumerical_scripts import get_fields
 
 class PointElectric(object):
 
@@ -31,23 +32,12 @@ class PointElectric(object):
     :param norm_p:       exponent of the p-norm used to generate the figure of merit; use to generate the FOM.
     """
 
-    def __init__(self, monitor_name, target_T_fwd = lambda wl: np.ones(wl.size), norm_p = 1):
+    def __init__(self, monitor_name):
         self.monitor_name = str(monitor_name)
         if not self.monitor_name:
             raise UserWarning('empty monitor name.')
         self.mode_expansion_monitor_name = monitor_name + '_mode_exp'
         self.adjoint_source_name = monitor_name + '_dipole_src'
-
-        target_T_fwd_result = target_T_fwd(np.linspace(0.1e-6, 10.0e-6, 1000))
-        if target_T_fwd_result.size != 1000:
-            raise UserWarning('target transmission must return a flat vector with the requested number of wavelength samples.')
-        elif np.any(target_T_fwd_result.min() < 0.0) or np.any(target_T_fwd_result.max() > 1.0):
-            raise UserWarning('target transmission must always return numbers between zero and one.')
-        else:
-            self.target_T_fwd = target_T_fwd
-        self.norm_p = int(norm_p)
-        if self.norm_p < 1:
-            raise UserWarning('exponent p for norm must be positive.')
 
     def add_to_sim(self, sim):
         """
@@ -56,12 +46,13 @@ class PointElectric(object):
         pass
 
     def get_fom(self, sim):
-        trans_coeff = ModeMatch.get_transmission_coefficient(sim, self.direction, self.monitor_name, self.mode_expansion_monitor_name)
-        self.wavelengths = ModeMatch.get_wavelengths(sim)
-        source_power = ModeMatch.get_source_power(sim, self.wavelengths)
-        self.T_fwd_vs_wavelength = np.real(trans_coeff * trans_coeff.conj() / source_power)
-        self.phase_prefactors = trans_coeff / 8.0 / source_power
-        fom = ModeMatch.fom_wavelength_integral(self.T_fwd_vs_wavelength, self.wavelengths, self.target_T_fwd, self.norm_p)
+        """
+        FOM is the squared magnitude of the E-field at monitor 'fom'
+        """
+        E_field = get_fields(sim, 'fom')
+        print('PointElectric.get_fom: Field Object', E_field)
+        print('PointElectric.get_fom: E field', E_field.E)
+        
         return fom
 
     def get_adjoint_field_scaling(self, sim):
@@ -80,19 +71,6 @@ class PointElectric(object):
     @staticmethod
     def get_E_field(sim, monitor_name):
         pass
-
-
-    @staticmethod
-    def get_transmission_coefficient(sim, direction, monitor_name, mode_exp_monitor_name):
-        mode_exp_result_name = 'expansion for ' + mode_exp_monitor_name
-        if not sim.fdtd.haveresult(mode_exp_monitor_name, mode_exp_result_name):
-            raise UserWarning('unable to calcualte mode expansion.')
-        mode_exp_data_set = sim.fdtd.getresult(mode_exp_monitor_name, mode_exp_result_name)
-        fwd_trans_coeff = mode_exp_data_set['a'] * np.sqrt(mode_exp_data_set['N'].real)
-        back_trans_coeff = mode_exp_data_set['b'] * np.sqrt(mode_exp_data_set['N'].real)
-        if direction == 'Backward':
-            fwd_trans_coeff, back_trans_coeff = back_trans_coeff, fwd_trans_coeff
-        return fwd_trans_coeff.flatten()
 
     @staticmethod
     def get_source_power(sim, wavelengths):
