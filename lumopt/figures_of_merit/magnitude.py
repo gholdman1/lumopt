@@ -1,6 +1,6 @@
 """ Copyright chriskeraly
     Copyright (c) 2019 Lumerical Inc. 
-    Adapted by gholdman1
+    Author: Greg Holdman (gholdman1)
     """
 
 import sys
@@ -28,8 +28,6 @@ class PointElectric(object):
     ----------
     
     :param monitor_name: name of the power monitor that records the electric field at a point.
-    :param target_T_fwd: function describing the target T_forward vs wavelength (see documentation for mode expansion monitors).
-    :param norm_p:       exponent of the p-norm used to generate the figure of merit; use to generate the FOM.
     """
 
     def __init__(self, monitor_name):
@@ -55,13 +53,15 @@ class PointElectric(object):
 
         [1] Miller, O.D. (2012). Photonic Design: From Fundamental Solar Cell Physics
             to Computational Inverse Design. University of California, Berkeley.
+            http://optoelectronics.eecs.berkeley.edu/ThesisOwenMiller.pdf
 
 
         """
         E_field_object = get_fields(sim.fdtd, 'fom',False,False,False,False)
 
-        E_field = E_field_object.E.squeeze()
-        fom = 0.5 * np.real(np.dot(np.conj(E_field),E_field))
+        self.forward_E = E_field_object.E.squeeze()
+        fom = 0.5 * np.real(np.dot(np.conj(self.forward_E),
+                                    self.forward_E))
         
         return fom
 
@@ -76,11 +76,6 @@ class PointElectric(object):
         return Wavelengths(sim.fdtd.getglobalsource('wavelength start'), 
                            sim.fdtd.getglobalsource('wavelength stop'),
                            sim.fdtd.getglobalmonitor('frequency points')).asarray()
-
-
-    @staticmethod
-    def get_E_field(sim, monitor_name):
-        pass
 
     @staticmethod
     def get_source_power(sim, wavelengths):
@@ -106,51 +101,68 @@ class PointElectric(object):
 
     def add_adjoint_sources(self, sim):
         """
-        Adds 2 or 3 dipole sources at the location of the figure of merit
+        Adds 2 (3) dipole sources in a 2D (3D) simulation
+        at the location of the figure of merit.
         """
 
         # Only address the relevant directions
-        if sim.getnamed('FDTD','dimension')=='3D':
+        if sim.fdtd.getnamed('FDTD','dimension')=='3D':
             dirs = ('x','y','z')
-        if sim.getnamed('FDTD','dimension')=='2D':
+        if sim.fdtd.getnamed('FDTD','dimension')=='2D':
             dirs = ('x','y')
 
-        for cartesian in dirs:
+        for i,cartesian in enumerate(dirs):
+            print('Setting dipole in direction ', cartesian)
+            E_conj = np.conj(self.forward_E[i])
+            amplitude = float(np.abs(E_conj))
+            phase     = float(np.angle(E_conj)) * 360 / (2*np.pi)
+            print('amplitude: ',amplitude)
+            print('data type: ', type(amplitude))
+            print('phase: ',phase)
             PointElectric.add_dipole_source(sim,self.monitor_name,
                                         self.adjoint_source_name,
-                                        direction,phase,cartesian)
+                                        cartesian,amplitude,phase)
         ### Old code
         #adjoint_injection_direction = 'Backward' if self.direction == 'Forward' else 'Forward'
         #ModeMatch.addsource(sim, self.monitor_name, self.adjoint_source_name, adjoint_injection_direction, self.mode_number)
 
     @staticmethod
-    def add_dipole_source(sim, monitor_name, source_name, amplitude, phase, cartesian):
+    def add_dipole_source(sim, monitor_name, source_name, cartesian, amplitude, phase):
         '''
         Places a dipole at the location of a point monitor 'monitor_name'
+
+        Parameters
+        ----------
+
+        sim:            Simulation object
+        monitor_name:   string, name of the monitor where the dipole source will be placed
+        source_name:    name of the dipole to be placed
+        cartesian:      string, one of 'x', 'y', or 'z', the cartesian direction
+                        in which the dipole will point.
+        amplitude:      scalar (real), the amplitude of the dipole
+        phase:          scalar (real), the phase of the dipole
         '''
         sim.fdtd.adddipole()
-        sim.fdtd.set('name', source_name)
+        source_name_cart = source_name + '_' + cartesian
+        sim.fdtd.set('name', source_name_cart)
 
         for coord in ('x','y','z'):
             monitor_coord=sim.fdtd.getnamed(monitor_name,coord)
-            sim.fdtd.setnamed(source_name,coord,monitor_coord)
+            sim.fdtd.setnamed(source_name_cart,coord,monitor_coord)
 
-        sim.fdtd.setnamed(source_name,'amplitude',amplitude)
-        sim.fdtd.setnamed(source_name,'phase',phase)
+        sim.fdtd.setnamed(source_name_cart,'amplitude',amplitude)
+        sim.fdtd.setnamed(source_name_cart,'phase',phase)
 
         # Rotate dipole to point in cartesian direction
         if cartesian=='z':
-            sim.fdtd.setnamed(source_name,'theta',0)
-            sim.fdtd.setnamed(source_name,'phi',0)
+            sim.fdtd.setnamed(source_name_cart,'theta',0)
+            sim.fdtd.setnamed(source_name_cart,'phi',0)
         if cartesian=='x':
-            sim.fdtd.setnamed(source_name,'theta',90)
-            sim.fdtd.setnamed(source_name,'phi',0)
+            sim.fdtd.setnamed(source_name_cart,'theta',90)
+            sim.fdtd.setnamed(source_name_cart,'phi',0)
         if cartesian=='y':
-            sim.fdtd.setnamed(source_name,'theta',90)
-            sim.fdtd.setnamed(source_name,'phi',90)
-
-        sim.fdtd.setnamed(source_name, 'override global source settings', False)
-        sim.fdtd.setnamed(source_name, 'frequency points', sim.fdtd.getglobalmonitor('frequency points'))
+            sim.fdtd.setnamed(source_name_cart,'theta',90)
+            sim.fdtd.setnamed(source_name_cart,'phi',90)
 
     def fom_gradient_wavelength_integral(self, T_fwd_partial_derivs_vs_wl, wl):
         assert T_fwd_partial_derivs_vs_wl.shape[0] == wl.size
