@@ -82,22 +82,6 @@ class PointElectric(object):
         source_power = sim.fdtd.sourcepower(frequency)
         return np.asarray(source_power).flatten()
 
-    @staticmethod
-    def fom_wavelength_integral(T_fwd_vs_wavelength, wavelengths, target_T_fwd, norm_p):
-        target_T_fwd_vs_wavelength = target_T_fwd(wavelengths).flatten()
-        if len(wavelengths) > 1:
-            wavelength_range = wavelengths.max() - wavelengths.min()
-            assert wavelength_range > 0.0, "wavelength range must be positive."
-            T_fwd_integrand = np.power(np.abs(target_T_fwd_vs_wavelength), norm_p) / wavelength_range
-            const_term = np.power(np.trapz(y = T_fwd_integrand, x = wavelengths), 1.0 / norm_p)
-            T_fwd_error = np.abs(T_fwd_vs_wavelength.flatten() - target_T_fwd_vs_wavelength)
-            T_fwd_error_integrand = np.power(T_fwd_error, norm_p) / wavelength_range
-            error_term = np.power(np.trapz(y = T_fwd_error_integrand, x = wavelengths), 1.0 / norm_p)
-            fom = const_term - error_term
-        else:
-            fom = np.abs(target_T_fwd_vs_wavelength) - np.abs(T_fwd_vs_wavelength.flatten() - target_T_fwd_vs_wavelength)
-        return fom.real
-
     def add_adjoint_sources(self, sim):
         """
         Adds 2 (3) dipole sources in a 2D (3D) simulation
@@ -160,12 +144,28 @@ class PointElectric(object):
             sim.fdtd.setnamed(source_name_cart,'theta',90)
             sim.fdtd.setnamed(source_name_cart,'phi',90)
 
-    def fom_gradient_wavelength_integral(self, T_fwd_partial_derivs_vs_wl, wl):
-        assert T_fwd_partial_derivs_vs_wl.shape[0] == wl.size
+    @staticmethod
+    def fom_wavelength_integral(T_fwd_vs_wavelength, wavelengths, target_T_fwd, norm_p):
+        target_T_fwd_vs_wavelength = target_T_fwd(wavelengths).flatten()
+        if len(wavelengths) > 1:
+            wavelength_range = wavelengths.max() - wavelengths.min()
+            assert wavelength_range > 0.0, "wavelength range must be positive."
+            T_fwd_integrand = np.power(np.abs(target_T_fwd_vs_wavelength), norm_p) / wavelength_range
+            const_term = np.power(np.trapz(y = T_fwd_integrand, x = wavelengths), 1.0 / norm_p)
+            T_fwd_error = np.abs(T_fwd_vs_wavelength.flatten() - target_T_fwd_vs_wavelength)
+            T_fwd_error_integrand = np.power(T_fwd_error, norm_p) / wavelength_range
+            error_term = np.power(np.trapz(y = T_fwd_error_integrand, x = wavelengths), 1.0 / norm_p)
+            fom = const_term - error_term
+        else:
+            fom = np.abs(target_T_fwd_vs_wavelength) - np.abs(T_fwd_vs_wavelength.flatten() - target_T_fwd_vs_wavelength)
+        return fom.real
+
+    def fom_gradient_wavelength_integral(self, partial_derivs_vs_wl, wl):
+        assert partial_derivs_vs_wl.shape[0] == wl.size
         assert np.allclose(wl, self.wavelengths)
-        target_T_fwd_vs_wavelength = self.target_T_fwd(self.wavelengths).flatten()
+        # target_T_fwd_vs_wavelength = self.target_T_fwd(self.wavelengths).flatten()
         if self.wavelengths.size > 1:
-            num_opt_param = T_fwd_partial_derivs_vs_wl.shape[1]
+            num_opt_param = partial_derivs_vs_wl.shape[1]
             wavelength_range = self.wavelengths.max() - self.wavelengths.min()
             T_fwd_error = self.T_fwd_vs_wavelength - target_T_fwd_vs_wavelength
             T_fwd_error_integrand = np.power(np.abs(T_fwd_error), self.norm_p) / wavelength_range
@@ -176,5 +176,5 @@ class PointElectric(object):
                 T_fwd_partial_deriv = np.take(T_fwd_partial_derivs_vs_wl, indices = i, axis = 1)
                 T_fwd_partial_derivs[i] = const_factor * np.trapz(y = integral_kernel * T_fwd_partial_deriv, x = self.wavelengths)
         else:
-            T_fwd_partial_derivs = -1.0 * np.sign(self.T_fwd_vs_wavelength - target_T_fwd_vs_wavelength) * T_fwd_partial_derivs_vs_wl.flatten()
-        return T_fwd_partial_derivs.flatten().real
+            partial_derivs = partial_derivs_vs_wl.flatten()
+        return partial_derivs.flatten().real
