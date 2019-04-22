@@ -50,7 +50,10 @@ class PointElectric(object):
             raise UserWarning('exponent p for norm must be positive.')
 
     def add_to_sim(self, sim):
-        ModeMatch.add_mode_expansion_monitor(sim, self.monitor_name, self.mode_expansion_monitor_name, self.mode_number)
+        """
+        Unknown purpose. Pass for now.
+        """
+        pass
 
     def get_fom(self, sim):
         trans_coeff = ModeMatch.get_transmission_coefficient(sim, self.direction, self.monitor_name, self.mode_expansion_monitor_name)
