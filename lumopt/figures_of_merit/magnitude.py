@@ -57,6 +57,7 @@ class PointElectric(object):
 
 
         """
+        self.wavelengths = PointElectric.get_wavelengths(sim)
         E_field_object = get_fields(sim.fdtd, 'fom',False,False,False,False)
 
         self.forward_E = E_field_object.E.squeeze()
@@ -66,10 +67,8 @@ class PointElectric(object):
         return fom
 
     def get_adjoint_field_scaling(self, sim):
-        omega = 2.0 * np.pi * sp.constants.speed_of_light / self.wavelengths
-        adjoint_source_power = ModeMatch.get_source_power(sim, self.wavelengths)
-        scaling_factor = np.conj(self.phase_prefactors) * omega * 1j / np.sqrt(adjoint_source_power)
-        return scaling_factor
+        adjoint_source_power = PointElectric.get_source_power(sim, self.wavelengths)
+        return np.ones_like(adjoint_source_power)
 
     @staticmethod
     def get_wavelengths(sim):
@@ -122,9 +121,6 @@ class PointElectric(object):
             PointElectric.add_dipole_source(sim,self.monitor_name,
                                         self.adjoint_source_name,
                                         cartesian,amplitude,phase)
-        ### Old code
-        #adjoint_injection_direction = 'Backward' if self.direction == 'Forward' else 'Forward'
-        #ModeMatch.addsource(sim, self.monitor_name, self.adjoint_source_name, adjoint_injection_direction, self.mode_number)
 
     @staticmethod
     def add_dipole_source(sim, monitor_name, source_name, cartesian, amplitude, phase):
