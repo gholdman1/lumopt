@@ -47,11 +47,21 @@ class PointElectric(object):
 
     def get_fom(self, sim):
         """
-        FOM is the squared magnitude of the E-field at monitor 'fom'
+        FOM is HALF of the squared magnitude of the E-field at monitor 'fom', a la
+        Section 5.1 of Ref 1
+
+        References
+        ----------
+
+        [1] Miller, O.D. (2012). Photonic Design: From Fundamental Solar Cell Physics
+            to Computational Inverse Design. University of California, Berkeley.
+
+
         """
-        E_field = get_fields(sim, 'fom')
-        print('PointElectric.get_fom: Field Object', E_field)
-        print('PointElectric.get_fom: E field', E_field.E)
+        E_field_object = get_fields(sim.fdtd, 'fom',False,False,False,False)
+
+        E_field = E_field_object.E.squeeze()
+        fom = 0.5 * np.real(np.dot(np.conj(E_field),E_field))
         
         return fom
 
