@@ -61,17 +61,13 @@ class PointElectric(object):
         E_field_object = get_fields(sim.fdtd, 'fom',False,False,False,False)
 
         self.forward_E = E_field_object.E.squeeze()
-        self.phase_prefactors = 0.5
-        fom = self.phase_prefactors * np.real(np.dot(np.conj(self.forward_E),
-                                    self.forward_E))
+        self.phase_prefactors = np.linalg.norm(self.forward_E)
+        fom = 0.5 * np.linalg.norm(self.forward_E)**2
         return fom
 
     def get_adjoint_field_scaling(self, sim):
-        omega = 2.0 * np.pi * sp.constants.speed_of_light / self.wavelengths
         adjoint_source_power = PointElectric.get_source_power(sim, self.wavelengths)
-        scaling_factor = np.conj(self.phase_prefactors) * omega * 1j / np.sqrt(adjoint_source_power)
-        print('Scaling Factor: ',scaling_factor)
-        return scaling_factor
+        return self.phase_prefactors * np.ones_like(adjoint_source_power)
 
     @staticmethod
     def get_wavelengths(sim):
@@ -100,7 +96,7 @@ class PointElectric(object):
         for i,cartesian in enumerate(dirs):
             E_conj = np.conj(self.forward_E[i])
             amplitude = float(np.abs(E_conj))
-            phase     = float(np.angle(E_conj)) * 360 / (2*np.pi)
+            phase     = float(np.angle(E_conj)) * 360 / (2*np.pi) # phase is in degrees
             PointElectric.add_dipole_source(sim,self.monitor_name,
                                         self.adjoint_source_name,
                                         cartesian,amplitude,phase)
