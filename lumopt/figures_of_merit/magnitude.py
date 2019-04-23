@@ -39,7 +39,7 @@ class PointElectric(object):
 
     def add_to_sim(self, sim):
         """
-        Unknown purpose. Pass for now.
+        Not used in this FOM.
         """
         pass
 
@@ -76,12 +76,6 @@ class PointElectric(object):
         return Wavelengths(sim.fdtd.getglobalsource('wavelength start'), 
                            sim.fdtd.getglobalsource('wavelength stop'),
                            sim.fdtd.getglobalmonitor('frequency points')).asarray()
-
-    @staticmethod
-    def get_source_power(sim, wavelengths):
-        frequency = sp.constants.speed_of_light / wavelengths
-        source_power = sim.fdtd.sourcepower(frequency)
-        return np.asarray(source_power).flatten()
 
     def add_adjoint_sources(self, sim):
         """
