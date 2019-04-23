@@ -66,8 +66,10 @@ class PointElectric(object):
         return fom
 
     def get_adjoint_field_scaling(self, sim):
-        adjoint_source_power = PointElectric.get_source_power(sim, self.wavelengths)
-        return self.phase_prefactors * np.ones_like(adjoint_source_power)
+        # Only getting an order of magnitude scaling
+        # What is the correct expression from simulation constants?
+        omega = 2 * np.pi * sp.constants.speed_of_light / self.wavelengths
+        return self.phase_prefactors * 10**5 *omega* 1j * np.ones_like(self.wavelengths)
 
     @staticmethod
     def get_wavelengths(sim):
