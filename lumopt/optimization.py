@@ -200,6 +200,7 @@ class Optimization(SuperOptimization):
             :param params:  geometry parameters.
             :returns: figure of merit.
         """
+        print('Iteration ', self.optimizer.iteration)
         print('Params: ', params)
         self.geometry.update_geometry(params)
         fom = self.run_forward_solves()
