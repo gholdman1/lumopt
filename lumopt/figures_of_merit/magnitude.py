@@ -93,7 +93,7 @@ class PointElectric(object):
         for i,cartesian in enumerate(dirs):
             E_conj = np.conj(self.forward_E[i])
             amplitude = float(np.abs(E_conj))
-            phase     = float(np.angle(E_conj)) * 360 / (2*np.pi) # phase is in degrees
+            phase     = float(np.angle(E_conj)) * 360 / (2*np.pi) # degrees
             PointElectric.add_dipole_source(sim,self.monitor_name,
                                         self.adjoint_source_name,
                                         cartesian,amplitude,phase)
