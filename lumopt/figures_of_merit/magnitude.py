@@ -39,13 +39,14 @@ class PointElectric(object):
 
     def add_to_sim(self, sim):
         """
-        Not used in this FOM.
+        Probably not used in this FOM, but I'm not sure what its purpose
+        is in ModeMatch.
         """
         pass
 
     def get_fom(self, sim):
         """
-        FOM is HALF of the squared magnitude of the E-field at monitor 'fom', a la
+        FOM is the squared magnitude of the E-field at monitor 'fom', a la
         Section 5.1 of Ref 1
 
         References
@@ -62,7 +63,7 @@ class PointElectric(object):
 
         self.forward_E = E_field_object.E.squeeze()
         self.phase_prefactors = np.linalg.norm(self.forward_E)
-        fom = 0.5 * np.linalg.norm(self.forward_E)**2
+        fom = np.linalg.norm(self.forward_E)**2
         return fom
 
     def get_adjoint_field_scaling(self, sim):
