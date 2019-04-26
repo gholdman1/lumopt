@@ -15,7 +15,7 @@ It is all here: https://lumopt.readthedocs.io/en/latest/
 
 Make sure you have the latest version of Lumerical installed (it won't work correctly with older versions), and that lumapi (the python api) works
 
-If you are using `conda`, first create a new environment `lumopt` and install `python` and `jupyter`.
+If you are using `conda`, first create a new environment `lumopt` and install `python`, `matplotlib`, and `jupyter`.
 
 To install our branch of `lumopt`,
 
