@@ -200,7 +200,8 @@ class Optimization(SuperOptimization):
             :param params:  geometry parameters.
             :returns: figure of merit.
         """
-
+        print('Iteration ', self.optimizer.iteration)
+        print('Params: ', params)
         self.geometry.update_geometry(params)
         fom = self.run_forward_solves()
         return fom
@@ -234,6 +235,8 @@ class Optimization(SuperOptimization):
             fom_partial_derivs_vs_wl = self.geometry.calculate_gradients(self.gradient_fields)
             wl = self.gradient_fields.forward_fields.wl
             self.gradients = self.fom.fom_gradient_wavelength_integral(fom_partial_derivs_vs_wl.transpose(), wl)
+        
+        print('Gradients: ', self.gradients)
         return self.gradients
 
     @staticmethod
