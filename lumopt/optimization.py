@@ -98,9 +98,10 @@ class Optimization(SuperOptimization):
         :param optimizer:   SciyPy minimizer wrapper (class ScipyOptimizers).
         :param hide_fdtd:   flag run FDTD CAD in the background.
         :param use_deps:    flag to use the numerical derivatives calculated directly from FDTD.
+        :param wq_config:   dict, if using Work_Queue provides the configuration.
     """
 
-    def __init__(self, base_script, wavelengths, fom, geometry, optimizer, hide_fdtd_cad = False, use_deps = True):
+    def __init__(self, base_script, wavelengths, fom, geometry, optimizer, hide_fdtd_cad = False, use_deps = True,wq_config=None):
         self.base_script = base_script
         self.wavelengths = wavelengths if isinstance(wavelengths, Wavelengths) else Wavelengths(wavelengths)
         self.fom = fom
@@ -110,6 +111,9 @@ class Optimization(SuperOptimization):
         self.use_deps = bool(use_deps)
         if self.use_deps:
             print("Accurate interface detection enabled")
+        if wq_config:
+            print('Using WorkQueue to run simulations')
+            self.wq_config=wq_config
 
         self.plotter = Plotter()
         self.forward_fields = None
@@ -145,7 +149,7 @@ class Optimization(SuperOptimization):
         def plotting_function():
             self.plotter.update(self)
         self.optimizer.initialize(start_params = start_params, callable_fom = callable_fom, callable_jac = callable_jac, bounds = bounds, plotting_function = plotting_function)
-        self.sim = Simulation(self.workingDir, self.hide_fdtd_cad)
+        self.sim = Simulation(self.workingDir, self.hide_fdtd_cad,self.wq_config)
 
     def make_forward_sim(self, geometry = None):
         """ Creates the forward simulation by adding the geometry to the base simulation and adding a refractive index monitor overlaping
