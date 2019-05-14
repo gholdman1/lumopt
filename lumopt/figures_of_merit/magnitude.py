@@ -153,6 +153,12 @@ class PointElectric(object):
         return fom.real
 
     def fom_gradient_wavelength_integral(self, partial_derivs_vs_wl, wl):
+        '''
+        
+        :param partial_derivs_vs_wl:    n x m numpy array where n is number of wls
+                                        and m is number of parameters
+        :param wl:                      wavelengths
+        '''
         assert partial_derivs_vs_wl.shape[0] == wl.size
         assert np.allclose(wl, self.wavelengths)
         # target_T_fwd_vs_wavelength = self.target_T_fwd(self.wavelengths).flatten()
