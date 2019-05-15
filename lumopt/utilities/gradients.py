@@ -86,6 +86,10 @@ class GradientFields(object):
             D_perp_adjoint = project(D_adjoint, normal)
             result = 2.0 * ( sp.constants.epsilon_0 * (eps_in - eps_out) * np.sum(E_parallel_forward * E_parallel_adjoint) 
                       + (1.0/eps_out - 1.0/eps_in) / sp.constants.epsilon_0 * np.sum(D_perp_forward * D_perp_adjoint) )
+        
+            if np.any(np.isnan(result)):
+                return 0
+                
             return np.real(result)
         
         return gradient_field
