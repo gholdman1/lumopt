@@ -177,6 +177,10 @@ class FunctionDefinedPolygon(Polygon):
             partial_derivs = (d_polygon_points_linear - polygon_points_linear) / self.dx
             gradients.append(np.dot(partial_derivs, polygon_gradients))
         self.gradients.append(gradients)
+
+        if np.array(self.gradients[-1]).ndim==1:
+            return np.atleast_2d(np.array(self.gradients[-1])).transpose()
+            
         return np.array(self.gradients[-1])
 
     def add_poly_script(self, sim, points, only_update):
