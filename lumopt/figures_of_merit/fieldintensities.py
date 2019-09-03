@@ -8,7 +8,7 @@ class FieldIntensity(object):
 	A figure of merit which is simply |E|^2 at a point monitor defined in the base simulation
 	'''
 
-	def __init__(self, monitor_name):
+	def __init__(self, monitor_name,wavelengths):
 		'''
 		:param monitor_name: A string: the name of the point monitor
 		:param wavelengths: A list of the wavelengths of interest (for the moment supports only a single value)
@@ -17,6 +17,20 @@ class FieldIntensity(object):
 		self.wavelengths = wavelengths
 		self.current_fom = None
 		self.fields = None
+		self.multi_freq_src=False
+		self.adjoint_source_name='dipole_src'
+
+	def initialize(self,sim):
+
+
+		self.add_adjoint_sources(sim)
+
+	def make_forward_sim(self, sim):
+
+		for orientation in ['x','y','z']:
+			sim.fdtd.setnamed(self.adjoint_source_name+'_'+orientation,
+							'enabled', False)
+
 
 	def get_fom(self, simulation):
 		'''
@@ -35,24 +49,68 @@ class FieldIntensity(object):
 		:param simulation: The simulation object of the base simulation
 		'''
 
-		field = self.fields
-		pointfield = field.getfield(field.x[0], field.y[0], field.z[0], self.wavelengths[0])
-
-		adjoint_source = np.conj(pointfield)
-
-		# Is this three dipoles?
-		ls.add_dipole(sim.fdtd, field.x[0], field.y[0], field.z[0], self.wavelengths[0], adjoint_source)
-
-		sim.fdtd.eval(script)
-
+		for orientation in ['x','y','z']:
+			FieldIntensity.add_dipole_source(sim,
+								self.monitor_name,
+								self.adjoint_source_name,
+								orientation)
+		
 	@staticmethod
-	def add_dipole_source(sim):
+	def add_dipole_source(sim,monitor_name,source_name,orientation):
 		'''
-		WRITTEN in magnitude.py
+		
+		orientation: 'x','y',or 'z'
+		'''
 
-		Import here.
-		'''
-		pass
+		xpos=sim.fdtd.getnamed(monitor_name,'x')
+		ypos=sim.fdtd.getnamed(monitor_name,'y')
+		zpos=sim.fdtd.getnamed(monitor_name,'z')
+
+		sim.fdtd.adddipole()
+		src=source_name+'_'+orientation
+		sim.fdtd.set('name',src)
+		sim.fdtd.setnamed(src,'x',xpos)
+		sim.fdtd.setnamed(src,'y',ypos)
+		sim.fdtd.setnamed(src,'z',zpos)
+
+		if(orientation=='x'):
+			sim.fdtd.setnamed(src,'theta',90)
+		if(orientation=='y'):
+			sim.fdtd.setnamed(src,'phi',90)
+			sim.fdtd.setnamed(src,'theta',90)
+
+	def check_monitor_alignment(self, sim):
+	  
+		## Here, we check that the FOM_monitor is properly aligned with the mesh
+		if sim.fdtd.getnamednumber(self.monitor_name) != 1:
+			raise UserWarning('monitor could not be found or the specified name is not unique.')
+		
+		# Get the orientation
+		monitor_type = sim.fdtd.getnamed(self.monitor_name, 'monitor type')
+
+		if (monitor_type == 'Linear X') or (monitor_type == '2D X-normal'):
+			orientation = 'x'
+		elif (monitor_type == 'Linear Y') or (monitor_type == '2D Y-normal'):
+			orientation = 'y'
+		elif (monitor_type == 'Linear Z') or (monitor_type == '2D Z-normal'):
+			orientation = 'z'
+		else:
+			raise UserWarning('monitor should be 2D or linear for a mode expansion to be meaningful.')
+
+		monitor_pos = sim.fdtd.getnamed(self.monitor_name, orientation)
+		if sim.fdtd.getnamednumber('FDTD') == 1:
+			grid = sim.fdtd.getresult('FDTD', orientation)
+		elif sim.fdtd.getnamednumber('varFDTD') == 1:
+			grid = sim.fdtd.getresult('varFDTD', orientation)
+		else:
+			raise UserWarning('no FDTD or varFDTD solver object could be found.')
+		## Check if this is exactly aligned with the simulation mesh. It exactly aligns if we find a point
+		## along the grid which is no more than 'tol' away from the position
+		tol = 1e-9
+		if min(abs(grid-monitor_pos)) > tol:
+			print('WARNING: The monitor "{}" is not aligned with the grid. This can introduce small phase errors which sometimes result in inaccurate gradients.'.format(self.monitor_name))
+
+
 
 class FieldIntensities(object):
 	'''
@@ -84,6 +142,8 @@ class FieldIntensities(object):
 		self.fields=None
 		self.normalize_to_source_power=normalize_to_source_power
 		self.monitor_names=['fom_mon_{}'.format(i) for i in range(len(self.positions))]
+
+		self.multi_freq_src=False
 
 	def put_monitors(self,simulation):
 		script=''
@@ -131,6 +191,13 @@ class FieldIntensities(object):
 			
 		sim.fdtd.eval(script)
 		return
+
+	@staticmethod
+	def add_dipole(sim,monitor_name,source_name):
+		'''
+		Add dipole at location of monitor
+		'''
+		pass
 
 
 
