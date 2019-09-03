@@ -9,7 +9,6 @@ import scipy as sp
 from lumopt import CONFIG
 
 # Optimization specific imports
-from lumopt.utilities.load_lumerical_scripts import load_from_lsf
 from lumopt.utilities.wavelengths import Wavelengths
 from lumopt.geometries.polygon import FunctionDefinedPolygon
 from lumopt.figures_of_merit.modematch import ModeMatch
@@ -17,7 +16,7 @@ from lumopt.optimizers.generic_optimizers import ScipyOptimizers
 from lumopt.optimization import Optimization
 
 ######## DEFINE BASE SIMULATION ########
-base_script = load_from_lsf(os.path.join(os.path.dirname(__file__), 'splitter_with_arms.lsf'))
+base_script = os.path.join(os.path.dirname(__file__), 'splitter_with_arms.lsf')
 
 ######## DEFINE SPECTRAL RANGE #########
 wavelengths = Wavelengths(start = 1550e-9, stop = 1550e-9, points = 1)
@@ -56,7 +55,7 @@ geometry = FunctionDefinedPolygon(func = taper_splitter, initial_params = inital
 
 ######## DEFINE FIGURE OF MERIT ########
 # The base simulation script defines a field monitor named 'fom' at the point where we want to modematch to the 3rd mode (fundamental TE mode).
-fom = ModeMatch(monitor_name = 'fom', mode_number = 2, direction = 'Forward', target_T_fwd = lambda wl: np.ones(wl.size), norm_p = 1)
+fom = ModeMatch(monitor_name = 'fom', mode_number = 2, direction = 'Forward', multi_freq_src = False, target_T_fwd = lambda wl: np.ones(wl.size), norm_p = 1)
 
 ######## DEFINE OPTIMIZATION ALGORITHM ########
 # This will run Scipy's implementation of the L-BFGS-B algoithm for at least 40 iterations. Since the variables are on the
