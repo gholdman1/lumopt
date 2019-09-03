@@ -8,7 +8,7 @@ class FieldIntensity(object):
 	A figure of merit which is simply |E|^2 at a point monitor defined in the base simulation
 	'''
 
-	def __init__(self, monitor_name, long_source=False):
+	def __init__(self, monitor_name):
 		'''
 		:param monitor_name: A string: the name of the point monitor
 		:param wavelengths: A list of the wavelengths of interest (for the moment supports only a single value)
@@ -17,7 +17,6 @@ class FieldIntensity(object):
 		self.wavelengths = wavelengths
 		self.current_fom = None
 		self.fields = None
-		self.long_source=long_source
 
 	def get_fom(self, simulation):
 		'''
@@ -44,8 +43,6 @@ class FieldIntensity(object):
 		# Is this three dipoles?
 		ls.add_dipole(sim.fdtd, field.x[0], field.y[0], field.z[0], self.wavelengths[0], adjoint_source)
 
-		if self.long_source:
-			script='set("optimize for short pulse", 0);'
 		sim.fdtd.eval(script)
 
 	@staticmethod
