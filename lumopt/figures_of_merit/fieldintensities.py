@@ -2,6 +2,7 @@ import lumopt.lumerical_methods.lumerical_scripts as ls
 import numpy as np
 import lumapi
 
+from lumopt.utilities.wavelengths import Wavelengths
 
 class FieldIntensity(object):
 	'''
@@ -21,8 +22,6 @@ class FieldIntensity(object):
 		self.adjoint_source_name='dipole_src'
 
 	def initialize(self,sim):
-
-
 		self.add_adjoint_sources(sim)
 
 	def make_forward_sim(self, sim):
@@ -31,16 +30,33 @@ class FieldIntensity(object):
 			sim.fdtd.setnamed(self.adjoint_source_name+'_'+orientation,
 							'enabled', False)
 
+	def make_adjoint_sim(self,sim):
+		oris=['x','y','z']
+		for i in range(len(oris)):
+			ori=oris[i]
+			src=self.adjoint_source_name+'_'+ori
 
-	def get_fom(self, simulation):
+			Ec=np.conj(self.forward_field['E'].squeeze())
+
+			amplitude=np.abs(Ec[i])
+			phase= np.angle(Ec[i])*(360/(2*np.pi))
+			print('Source ',src)
+			print('Amplitude ',amplitude)
+			print('Phase',phase)
+			sim.fdtd.setnamed(src,'amplitude',amplitude)
+			sim.fdtd.setnamed(src,'phase',phase)
+			sim.fdtd.setnamed(src,
+							'enabled', True)
+
+	def get_fom(self, sim):
 		'''
 		:param simulation: The simulation object of the base simulation
 		:return: The figure of merit
 		'''
-		field = ls.get_fields(simulation.solver_handle, self.monitor_name)
-		self.fields = field
-		pointfield = field.getfield(field.x[0], field.y[0], field.z[0], self.wavelengths[0])
-		fom = sum(pointfield*np.conj(pointfield))
+		field = sim.fdtd.getresult(self.monitor_name,'E')
+		self.wavelengths = FieldIntensity.get_wavelengths(sim)
+		self.forward_field=field
+		fom = np.linalg.norm(field['E'].squeeze())**2
 		return fom
 
 	def add_adjoint_sources(self, sim):
@@ -54,7 +70,43 @@ class FieldIntensity(object):
 								self.monitor_name,
 								self.adjoint_source_name,
 								orientation)
-		
+	
+	def get_adjoint_field_scaling(self,sim):
+		return np.array([1])
+
+	def fom_gradient_wavelength_integral(self, E_partial_derivs_vs_wl, wl):
+		assert np.allclose(wl, self.wavelengths)
+		return FieldIntensity.fom_gradient_wavelength_integral_impl(E_partial_derivs_vs_wl, self.wavelengths)
+
+	@staticmethod
+	def fom_gradient_wavelength_integral_impl(E_partial_derivs_vs_wl, wl):
+
+		if wl.size > 1:
+			assert T_fwd_partial_derivs_vs_wl.shape[1] == wl.size
+			
+			wavelength_range = wl.max() - wl.min()
+			T_fwd_error = T_fwd_vs_wavelength - target_T_fwd_vs_wavelength
+			T_fwd_error_integrand = np.power(np.abs(T_fwd_error), norm_p) / wavelength_range
+			const_factor = -1.0 * np.power(np.trapz(y = T_fwd_error_integrand, x = wl), 1.0 / norm_p - 1.0)
+			integral_kernel = np.power(np.abs(T_fwd_error), norm_p - 1) * np.sign(T_fwd_error) / wavelength_range
+			
+			## Implement the trapezoidal integration as a matrix-vector-product for performance reasons
+			d = np.diff(wl)
+			quad_weight = np.append(np.append(d[0], d[0:-1]+d[1:]),d[-1])/2 #< There is probably a more elegant way to do this
+			v = const_factor * integral_kernel * quad_weight
+			T_fwd_partial_derivs = T_fwd_partial_derivs_vs_wl.dot(v)
+
+			## This is the much slower (but possibly more readable) code
+			# num_opt_param = T_fwd_partial_derivs_vs_wl.shape[0]
+			# T_fwd_partial_derivs = np.zeros(num_opt_param, dtype = 'complex')
+			# for i in range(num_opt_param):
+			#     T_fwd_partial_deriv = np.take(T_fwd_partial_derivs_vs_wl.transpose(), indices = i, axis = 1)
+			#     T_fwd_partial_derivs[i] = const_factor * np.trapz(y = integral_kernel * T_fwd_partial_deriv, x = wl)
+		else:
+			E_fwd_partial_derivs = E_partial_derivs_vs_wl.flatten()
+
+		return E_fwd_partial_derivs.flatten().real
+
 	@staticmethod
 	def add_dipole_source(sim,monitor_name,source_name,orientation):
 		'''
@@ -110,6 +162,11 @@ class FieldIntensity(object):
 		if min(abs(grid-monitor_pos)) > tol:
 			print('WARNING: The monitor "{}" is not aligned with the grid. This can introduce small phase errors which sometimes result in inaccurate gradients.'.format(self.monitor_name))
 
+	@staticmethod
+	def get_wavelengths(sim):
+		return Wavelengths(sim.fdtd.getglobalsource('wavelength start'), 
+						   sim.fdtd.getglobalsource('wavelength stop'),
+						   sim.fdtd.getglobalmonitor('frequency points')).asarray()
 
 
 class FieldIntensities(object):
