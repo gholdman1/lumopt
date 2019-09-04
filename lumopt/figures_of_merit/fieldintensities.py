@@ -16,8 +16,6 @@ class FieldIntensity(object):
 		'''
 		self.monitor_name = monitor_name
 		self.wavelengths = wavelengths
-		self.current_fom = None
-		self.fields = None
 		self.multi_freq_src=False
 		self.adjoint_source_name='dipole_src'
 
