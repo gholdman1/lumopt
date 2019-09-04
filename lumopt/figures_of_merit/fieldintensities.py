@@ -64,8 +64,12 @@ class FieldIntensity(object):
 		'''
 
 		for orientation in ['x','y','z']:
+			xpos=sim.fdtd.getnamed(self.monitor_name,'x')
+			ypos=sim.fdtd.getnamed(self.monitor_name,'y')
+			zpos=sim.fdtd.getnamed(self.monitor_name,'z')
+			pos=[xpos,ypos,zpos]
 			FieldIntensity.add_dipole_source(sim,
-								self.monitor_name,
+								pos,
 								self.adjoint_source_name,
 								orientation)
 	
@@ -106,22 +110,20 @@ class FieldIntensity(object):
 		return E_fwd_partial_derivs.flatten().real
 
 	@staticmethod
-	def add_dipole_source(sim,monitor_name,source_name,orientation):
+	def add_dipole_source(sim,pos,source_name,orientation):
 		'''
 		
 		orientation: 'x','y',or 'z'
 		'''
 
-		xpos=sim.fdtd.getnamed(monitor_name,'x')
-		ypos=sim.fdtd.getnamed(monitor_name,'y')
-		zpos=sim.fdtd.getnamed(monitor_name,'z')
+
 
 		sim.fdtd.adddipole()
 		src=source_name+'_'+orientation
 		sim.fdtd.set('name',src)
-		sim.fdtd.setnamed(src,'x',xpos)
-		sim.fdtd.setnamed(src,'y',ypos)
-		sim.fdtd.setnamed(src,'z',zpos)
+		sim.fdtd.setnamed(src,'x',pos[0])
+		sim.fdtd.setnamed(src,'y',pos[1])
+		sim.fdtd.setnamed(src,'z',pos[2])
 
 		if(orientation=='x'):
 			sim.fdtd.setnamed(src,'theta',90)
