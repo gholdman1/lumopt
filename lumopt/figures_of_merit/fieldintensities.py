@@ -24,27 +24,29 @@ class FieldIntensity(object):
 
 	def make_forward_sim(self, sim):
 
-		for orientation in ['x','y','z']:
-			sim.fdtd.setnamed(self.adjoint_source_name+'_'+orientation,
+		for i in range(len(self.dipole_x)):
+			for orientation in ['x','y','z']:
+				sim.fdtd.setnamed(self.adjoint_source_name+'_'+str(i)+'_'+orientation,
 							'enabled', False)
 
 	def make_adjoint_sim(self,sim):
 		oris=['x','y','z']
-		for i in range(len(oris)):
-			ori=oris[i]
-			src=self.adjoint_source_name+'_'+ori
+		for j in range(len(self.dipole_x)):
+			for i in range(len(oris)):
+				ori=oris[i]
+				src=self.adjoint_source_name+'_'+str(j)+'_'+ori
 
-			Ec=np.conj(self.forward_field['E'].squeeze())
-
-			amplitude=np.abs(Ec[i])
-			phase= np.angle(Ec[i])*(360/(2*np.pi))
-			print('Source ',src)
-			print('Amplitude ',amplitude)
-			print('Phase',phase)
-			sim.fdtd.setnamed(src,'amplitude',amplitude)
-			sim.fdtd.setnamed(src,'phase',phase)
-			sim.fdtd.setnamed(src,
-							'enabled', True)
+				Ec=np.conj(self.forward_field['E'].squeeze())
+				print('Ec',Ec.shape)
+				amplitude=np.abs(Ec[j,i])
+				phase= np.angle(Ec[j,i])*(360/(2*np.pi))
+				print('Source ',src)
+				print('Amplitude ',amplitude)
+				print('Phase',phase)
+				sim.fdtd.setnamed(src,'amplitude',amplitude)
+				sim.fdtd.setnamed(src,'phase',phase)
+				sim.fdtd.setnamed(src,
+								'enabled', True)
 
 	def get_fom(self, sim):
 		'''
@@ -63,14 +65,28 @@ class FieldIntensity(object):
 		:param simulation: The simulation object of the base simulation
 		'''
 
-		for orientation in ['x','y','z']:
-			xpos=sim.fdtd.getnamed(self.monitor_name,'x')
-			ypos=sim.fdtd.getnamed(self.monitor_name,'y')
-			zpos=sim.fdtd.getnamed(self.monitor_name,'z')
-			pos=[xpos,ypos,zpos]
-			FieldIntensity.add_dipole_source(sim,
+		# Mesh positions
+		mesh_x=sim.fdtd.getresult('FDTD','x')
+		mesh_y=sim.fdtd.getresult('FDTD','y')
+
+		# Bounds of monitor
+		sim.fdtd.select(self.monitor_name)
+		monitor_xmin=sim.fdtd.get('x min')
+		monitor_xmax=sim.fdtd.get('x max')
+		self.dipole_y=mesh_y[np.argmin(np.abs(sim.fdtd.get('y')-mesh_y))]
+		self.dipole_z=0
+
+
+		greater,lesser=mesh_x>monitor_xmin,mesh_x<monitor_xmax
+		self.dipole_x=mesh_x[greater & lesser]
+
+		for i in range(len(self.dipole_x)):
+			x = self.dipole_x[i]
+			pos=[x,self.dipole_y,self.dipole_z]
+			for orientation in ['x','y','z']:
+				FieldIntensity.add_dipole_source(sim,
 								pos,
-								self.adjoint_source_name,
+								self.adjoint_source_name+'_'+str(i)+'_'+orientation,
 								orientation)
 	
 	def get_adjoint_field_scaling(self,sim):
@@ -119,7 +135,7 @@ class FieldIntensity(object):
 
 
 		sim.fdtd.adddipole()
-		src=source_name+'_'+orientation
+		src=source_name
 		sim.fdtd.set('name',src)
 		sim.fdtd.setnamed(src,'x',pos[0])
 		sim.fdtd.setnamed(src,'y',pos[1])
