@@ -7,7 +7,7 @@ from lumopt.utilities.wavelengths import Wavelengths
 
 class FieldIntensity(object):
 	'''
-	A figure of merit which is simply |E|^2 at a point monitor defined in the base simulation
+	A figure of merit which is simply the average |E|^2 in a monitor.
 	'''
 
 	def __init__(self, monitor_name,wavelengths):
@@ -79,13 +79,16 @@ class FieldIntensity(object):
 		E2mean=np.empty(numwls)
 
 		if x.size==1 and y.size==1 and z.size==1:
-			return E2.squeeze()
+			return E2.squeeze()	
 		if x.size>1 and y.size==1 and z.size==1:
 			E2mean = integrate.trapz(E2.squeeze(),x=x,axis=0) / np.abs(x[0]-x[-1])
 		if y.size>1 and x.size==1 and z.size==1:
 			E2mean = integrate.trapz(E2.squeeze(),x=y,axis=0) / np.abs(y[0]-y[-1])
 		if z.size>1 and x.size==1 and y.size==1:
 			E2mean = integrate.trapz(E2.squeeze(),x=z,axis=0) / np.abs(z[0]-z[-1])
+		if x.size>1 and y.size>1 and z.size==1:
+			E2meanX = integrate.trapz(E2.squeeze(),x=x,axis=0) / np.abs(x[0]-x[-1])
+			E2mean  = integrate.trapz(E2meanX,x=y,axis=0) / np.abs(y[0]-y[-1])
 
 		fom = E2mean.squeeze()
 
@@ -145,18 +148,18 @@ class FieldIntensity(object):
 		'''
 
 		# Possible dipole positions, i.e. all mesh positions
-		mesh_x=sim.fdtd.getresult('FDTD','x')
-		mesh_y=sim.fdtd.getresult('FDTD','y')
-		mesh_z=np.array([sim.fdtd.getresult('FDTD','z')]) # If simulation 2D, make 0 return into an array
+		mesh_x=sim.fdtd.getresult('FDTD','x').squeeze()
+		mesh_y=sim.fdtd.getresult('FDTD','y').squeeze()
+		mesh_z=np.array([sim.fdtd.getresult('FDTD','z')]).squeeze() # If simulation 2D, make 0 return into an array
 
 		# Monitor positions
 		sim.fdtd.select(monitor_name)
 		mtype=sim.fdtd.get('monitor type')
 
 		if mtype=='Point':
-			dipole_x=np.array(sim.fdtd.get('x'))
-			dipole_y=np.array(sim.fdtd.get('y'))
-			dipole_z=np.array(sim.fdtd.get('z'))
+			dipole_x=np.array([sim.fdtd.get('x')])
+			dipole_y=np.array([sim.fdtd.get('y')])
+			dipole_z=np.array([sim.fdtd.get('z')])
 
 		if mtype=='Linear X':
 			monitor_xmin=sim.fdtd.get('x min')
@@ -169,6 +172,22 @@ class FieldIntensity(object):
 			dipole_x=mesh_x[greater & lesser]
 			dipole_y=[mesh_y[np.argmin(np.abs(monitor_y-mesh_y))]]
 			dipole_z=[mesh_z[np.argmin(np.abs(monitor_z-mesh_z))]]
+
+		if mtype=='2D Z-normal':
+			monitor_xmin=sim.fdtd.get('x min')
+			monitor_xmax=sim.fdtd.get('x max')			
+			monitor_ymin=sim.fdtd.get('y min')
+			monitor_ymax=sim.fdtd.get('y max')
+			monitor_z=sim.fdtd.get('z')
+
+			greater,lesser=mesh_x>monitor_xmin,mesh_x<monitor_xmax
+			dipole_x=mesh_x[greater & lesser]		
+
+			greater,lesser=mesh_y>monitor_ymin,mesh_y<monitor_ymax
+			dipole_y=mesh_y[greater & lesser]
+			dipole_z=[mesh_z[np.argmin(np.abs(monitor_z-mesh_z))]]
+
+
 
 		# Dipole positions have been defined
 		# Now iterate through them
