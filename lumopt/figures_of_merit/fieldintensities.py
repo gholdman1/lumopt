@@ -1,5 +1,6 @@
 import lumopt.lumerical_methods.lumerical_scripts as ls
 import numpy as np
+from scipy import integrate
 import lumapi
 
 from lumopt.utilities.wavelengths import Wavelengths
@@ -17,46 +18,77 @@ class FieldIntensity(object):
 		self.monitor_name = monitor_name
 		self.wavelengths = wavelengths
 		self.multi_freq_src=False
-		self.adjoint_source_name='dipole_src'
 
 	def initialize(self,sim):
 		self.add_adjoint_sources(sim)
 
 	def make_forward_sim(self, sim):
 
-		for i in range(len(self.dipole_x)):
-			for orientation in ['x','y','z']:
-				sim.fdtd.setnamed(self.adjoint_source_name+'_'+str(i)+'_'+orientation,
-							'enabled', False)
+		for src in self.adjoint_source_names:
+			sim.fdtd.setnamed(src,'enabled',False)
 
 	def make_adjoint_sim(self,sim):
-		oris=['x','y','z']
-		for j in range(len(self.dipole_x)):
-			for i in range(len(oris)):
-				ori=oris[i]
-				src=self.adjoint_source_name+'_'+str(j)+'_'+ori
+		Ec=np.conj(self.forward_field['E'])
 
-				Ec=np.conj(self.forward_field['E'].squeeze())
-				print('Ec',Ec.shape)
-				amplitude=np.abs(Ec[j,i])
-				phase= np.angle(Ec[j,i])*(360/(2*np.pi))
-				print('Source ',src)
-				print('Amplitude ',amplitude)
-				print('Phase',phase)
-				sim.fdtd.setnamed(src,'amplitude',amplitude)
-				sim.fdtd.setnamed(src,'phase',phase)
-				sim.fdtd.setnamed(src,
-								'enabled', True)
+		for src in self.adjoint_source_names:
+			sim.fdtd.select(src)
+			x=sim.fdtd.get('x');y=sim.fdtd.get('y');z=sim.fdtd.get('z');
+			sim.fdtd.set('enabled',True)
+
+			src_split = src.split('_')
+			i=int(src_split[2]);j=int(src_split[3]);k=int(src_split[4])
+			ori=src_split[5]
+
+			if ori=='x': l=0
+			if ori=='y': l=1
+			if ori=='z': l=2
+
+			Edip=Ec[i,j,k,0,l]
+			amplitude=np.abs(Edip)
+			phase= np.angle(Edip)*(360/(2*np.pi))
+
+			sim.fdtd.set('amplitude',amplitude)
+			sim.fdtd.set('phase',phase)
+
+		return
 
 	def get_fom(self, sim):
 		'''
 		:param simulation: The simulation object of the base simulation
 		:return: The figure of merit
 		'''
-		field = sim.fdtd.getresult(self.monitor_name,'E')
+		self.forward_field = sim.fdtd.getresult(self.monitor_name,'E')
 		self.wavelengths = FieldIntensity.get_wavelengths(sim)
-		self.forward_field=field
-		fom = np.linalg.norm(field['E'].squeeze())**2
+		
+		# Calculate the average E field intensity on monitor
+		x = self.forward_field['x'].squeeze()
+		y = self.forward_field['y'].squeeze()
+		z = self.forward_field['z'].squeeze()
+
+		shape=self.forward_field['E'].shape
+		numwls=shape[3]
+		E2 = np.empty(shape[:4])
+
+		for l in range(numwls):
+			E=self.forward_field['E']
+			E2[:,:,:,l] = np.real(	np.conj(E[:,:,:,l,0])*E[:,:,:,l,0] + 
+									np.conj(E[:,:,:,l,1])*E[:,:,:,l,1] + 
+									np.conj(E[:,:,:,l,2])*E[:,:,:,l,2] )
+
+
+		E2mean=np.empty(numwls)
+
+		if x.size==1 and y.size==1 and z.size==1:
+			return E2.squeeze()
+		if x.size>1 and y.size==1 and z.size==1:
+			E2mean = integrate.trapz(E2.squeeze(),x=x,axis=0) / np.abs(x[0]-x[-1])
+		if y.size>1 and x.size==1 and z.size==1:
+			E2mean = integrate.trapz(E2.squeeze(),x=y,axis=0) / np.abs(y[0]-y[-1])
+		if z.size>1 and x.size==1 and y.size==1:
+			E2mean = integrate.trapz(E2.squeeze(),x=z,axis=0) / np.abs(z[0]-z[-1])
+
+		fom = E2mean.squeeze()
+
 		return fom
 
 	def add_adjoint_sources(self, sim):
@@ -64,31 +96,11 @@ class FieldIntensity(object):
 		Adds the adjoint sources required in the adjoint simulation
 		:param simulation: The simulation object of the base simulation
 		'''
+		monitor_name=self.monitor_name
+		self.adjoint_source_names=FieldIntensity.add_dipoles_on_monitor(sim,monitor_name)
 
-		# Mesh positions
-		mesh_x=sim.fdtd.getresult('FDTD','x')
-		mesh_y=sim.fdtd.getresult('FDTD','y')
-
-		# Bounds of monitor
-		sim.fdtd.select(self.monitor_name)
-		monitor_xmin=sim.fdtd.get('x min')
-		monitor_xmax=sim.fdtd.get('x max')
-		self.dipole_y=mesh_y[np.argmin(np.abs(sim.fdtd.get('y')-mesh_y))]
-		self.dipole_z=0
-
-
-		greater,lesser=mesh_x>monitor_xmin,mesh_x<monitor_xmax
-		self.dipole_x=mesh_x[greater & lesser]
-
-		for i in range(len(self.dipole_x)):
-			x = self.dipole_x[i]
-			pos=[x,self.dipole_y,self.dipole_z]
-			for orientation in ['x','y','z']:
-				FieldIntensity.add_dipole_source(sim,
-								pos,
-								self.adjoint_source_name+'_'+str(i)+'_'+orientation,
-								orientation)
-	
+		return
+		
 	def get_adjoint_field_scaling(self,sim):
 		return np.array([1])
 
@@ -126,13 +138,65 @@ class FieldIntensity(object):
 		return E_fwd_partial_derivs.flatten().real
 
 	@staticmethod
+	def add_dipoles_on_monitor(sim,monitor_name):
+		'''
+		Adds 3 dipoles (on in each direction) to every point on a monitor.
+		Returns their names.
+		'''
+
+		# Possible dipole positions, i.e. all mesh positions
+		mesh_x=sim.fdtd.getresult('FDTD','x')
+		mesh_y=sim.fdtd.getresult('FDTD','y')
+		mesh_z=np.array([sim.fdtd.getresult('FDTD','z')]) # If simulation 2D, make 0 return into an array
+
+		# Monitor positions
+		sim.fdtd.select(monitor_name)
+		mtype=sim.fdtd.get('monitor type')
+
+		if mtype=='Point':
+			dipole_x=np.array(sim.fdtd.get('x'))
+			dipole_y=np.array(sim.fdtd.get('y'))
+			dipole_z=np.array(sim.fdtd.get('z'))
+
+		if mtype=='Linear X':
+			monitor_xmin=sim.fdtd.get('x min')
+			monitor_xmax=sim.fdtd.get('x max')
+			monitor_y=sim.fdtd.get('y')
+			monitor_z=sim.fdtd.get('z')
+
+			greater,lesser=mesh_x>monitor_xmin,mesh_x<monitor_xmax
+
+			dipole_x=mesh_x[greater & lesser]
+			dipole_y=[mesh_y[np.argmin(np.abs(monitor_y-mesh_y))]]
+			dipole_z=[mesh_z[np.argmin(np.abs(monitor_z-mesh_z))]]
+
+		# Dipole positions have been defined
+		# Now iterate through them
+		def dipole_name(mn,i,j,k,ori):
+			return 'dipole_src_'+str(i)+'_'+str(j)+'_'+str(k)+'_'+ori
+
+		dipole_sources=[]
+
+		for i in range(len(dipole_x)):
+			x=dipole_x[i]
+			for j in range(len(dipole_y)):
+				y=dipole_y[j]
+				for k in range(len(dipole_z)):
+					z=dipole_z[k]
+					for ori in ['x','y','z']:
+						pos=[x,y,z]
+						dpn=dipole_name(monitor_name,i,j,k,ori)
+						dipole_sources.append(dpn)
+						FieldIntensity.add_dipole_source(sim,pos,dpn,ori)
+
+		return dipole_sources
+
+	@staticmethod
 	def add_dipole_source(sim,pos,source_name,orientation):
 		'''
 		
 		orientation: 'x','y',or 'z'
 		'''
-
-
 
 		sim.fdtd.adddipole()
 		src=source_name
@@ -146,6 +210,22 @@ class FieldIntensity(object):
 		if(orientation=='y'):
 			sim.fdtd.setnamed(src,'phi',90)
 			sim.fdtd.setnamed(src,'theta',90)
+
+	@staticmethod
+	def get_monitor_orientation(sim,monitor_name):
+
+		mtype=sim.fdtd.getnamed(monitor_name,'monitor_type')
+
+		if mtype=='Point':
+			return 'Point'
+		if mtype=='Linear X' or mtype=='2D X-normal':
+			return 'x'
+		if mtype=='Linear Y' or mtype=='2D Y-normal':
+			return 'y'
+		if mtype=='Linear Z' or mtype=='2D Z-normal':
+			return 'z'
+		else:
+			return mtype
 
 	def check_monitor_alignment(self, sim):
 	  
