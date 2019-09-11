@@ -28,7 +28,10 @@ class FieldIntensity(object):
 			sim.fdtd.setnamed(src,'enabled',False)
 
 	def make_adjoint_sim(self,sim):
-		Ec=np.conj(self.forward_field['E'])
+
+		FieldIntensity.set_dipoles_on_monitor(sim,self.forward_field,self.adjoint_source_names)
+
+		return
 
 		for src in self.adjoint_source_names:
 			sim.fdtd.select(src)
@@ -50,7 +53,6 @@ class FieldIntensity(object):
 			sim.fdtd.set('amplitude',amplitude)
 			sim.fdtd.set('phase',phase)
 
-		return
 
 	def get_fom(self, sim):
 		'''
@@ -150,7 +152,7 @@ class FieldIntensity(object):
 		# Possible dipole positions, i.e. all mesh positions
 		mesh_x=sim.fdtd.getresult('FDTD','x').squeeze()
 		mesh_y=sim.fdtd.getresult('FDTD','y').squeeze()
-		mesh_z=np.array([sim.fdtd.getresult('FDTD','z')]).squeeze() # If simulation 2D, make 0 return into an array
+		mesh_z=np.array([sim.fdtd.getresult('FDTD','z')]) # If simulation 2D, make 0 return into an array
 
 		# Monitor positions
 		sim.fdtd.select(monitor_name)
@@ -209,6 +211,41 @@ class FieldIntensity(object):
 						FieldIntensity.add_dipole_source(sim,pos,dpn,ori)
 
 		return dipole_sources
+
+
+	@staticmethod
+	def set_dipoles_on_monitor(sim,monitor_E_field,dipole_names):
+		Ec=np.conj(monitor_E_field['E'])
+		xE=monitor_E_field['x']
+		yE=monitor_E_field['y']
+		zE=monitor_E_field['z']
+
+		for src in dipole_names:
+			sim.fdtd.select(src)
+			sim.fdtd.set('enabled',True)
+
+			x=sim.fdtd.get('x');y=sim.fdtd.get('y');z=sim.fdtd.get('z');
+
+			# Maybe not the most robust way to get the proper E-field position
+			xarg=np.argmin(np.abs(x-xE))
+			yarg=np.argmin(np.abs(y-yE))
+			zarg=np.argmin(np.abs(z-zE))
+
+			src_split = src.split('_')
+			ori=src_split[5]
+
+			if ori=='x': l=0
+			if ori=='y': l=1
+			if ori=='z': l=2
+
+			Edip=Ec[xarg,yarg,zarg,0,l]
+			amplitude=np.abs(Edip)
+			phase= np.angle(Edip)*(360/(2*np.pi))
+
+			sim.fdtd.set('amplitude',amplitude)
+			sim.fdtd.set('phase',phase)
+
+
 
 	@staticmethod
 	def add_dipole_source(sim,pos,source_name,orientation):
