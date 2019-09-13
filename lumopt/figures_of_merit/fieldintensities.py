@@ -10,14 +10,16 @@ class FieldIntensity(object):
 	A figure of merit which is simply the average |E|^2 in a monitor.
 	'''
 
-	def __init__(self, monitor_name,wavelengths):
+	def __init__(self, monitor_name,wavelengths,subspace=None):
 		'''
 		:param monitor_name: A string: the name of the point monitor
 		:param wavelengths: A list of the wavelengths of interest (for the moment supports only a single value)
+		:param subspace: A string giving the subspace in which to optimize intensity. 'None' means absolute intensity, 'xy' intensity in xy-plane, 'x' intensity in x-axis etc.
 		'''
 		self.monitor_name = monitor_name
 		self.wavelengths = wavelengths
 		self.multi_freq_src=False
+		self.subspace=subspace
 
 	def initialize(self,sim):
 		self.add_adjoint_sources(sim)
@@ -32,26 +34,6 @@ class FieldIntensity(object):
 		FieldIntensity.set_dipoles_on_monitor(sim,self.forward_field,self.adjoint_source_names)
 
 		return
-
-		for src in self.adjoint_source_names:
-			sim.fdtd.select(src)
-			x=sim.fdtd.get('x');y=sim.fdtd.get('y');z=sim.fdtd.get('z');
-			sim.fdtd.set('enabled',True)
-
-			src_split = src.split('_')
-			i=int(src_split[2]);j=int(src_split[3]);k=int(src_split[4])
-			ori=src_split[5]
-
-			if ori=='x': l=0
-			if ori=='y': l=1
-			if ori=='z': l=2
-
-			Edip=Ec[i,j,k,0,l]
-			amplitude=np.abs(Edip)
-			phase= np.angle(Edip)*(360/(2*np.pi))
-
-			sim.fdtd.set('amplitude',amplitude)
-			sim.fdtd.set('phase',phase)
 
 
 	def get_fom(self, sim):
@@ -71,11 +53,15 @@ class FieldIntensity(object):
 		numwls=shape[3]
 		E2 = np.empty(shape[:4])
 
+
 		for l in range(numwls):
 			E=self.forward_field['E']
-			E2[:,:,:,l] = np.real(	np.conj(E[:,:,:,l,0])*E[:,:,:,l,0] + 
-									np.conj(E[:,:,:,l,1])*E[:,:,:,l,1] + 
-									np.conj(E[:,:,:,l,2])*E[:,:,:,l,2] )
+
+			E2x=('x' in self.subspace)*np.conj(E[:,:,:,l,0])*E[:,:,:,l,0]
+			E2y=('y' in self.subspace)*np.conj(E[:,:,:,l,1])*E[:,:,:,l,1]
+			E2z=('z' in self.subspace)*np.conj(E[:,:,:,l,2])*E[:,:,:,l,2]
+
+			E2[:,:,:,l] = np.real(	E2x + E2y + E2z )
 
 
 		E2mean=np.empty(numwls)
@@ -102,7 +88,13 @@ class FieldIntensity(object):
 		:param simulation: The simulation object of the base simulation
 		'''
 		monitor_name=self.monitor_name
-		self.adjoint_source_names=FieldIntensity.add_dipoles_on_monitor(sim,monitor_name)
+
+		# Choose orientations to omit
+		oris='xyz'
+		omit=oris.replace(self.subspace,'') # only dirs outside subspace retained for omission
+
+
+		self.adjoint_source_names=FieldIntensity.add_dipoles_on_monitor(sim,monitor_name,omit_ori=omit)
 
 		return
 		
@@ -143,10 +135,12 @@ class FieldIntensity(object):
 		return E_fwd_partial_derivs.flatten().real
 
 	@staticmethod
-	def add_dipoles_on_monitor(sim,monitor_name):
+	def add_dipoles_on_monitor(sim,monitor_name,omit_ori=None):
 		'''
 		Adds 3 dipoles (on in each direction) to every point on a monitor.
 		Returns their names.
+		:param monitor_name: string, monitor on which to place dipoles
+		:param omit_ori: orientations to omit.
 		'''
 
 		# Possible dipole positions, i.e. all mesh positions
@@ -205,6 +199,7 @@ class FieldIntensity(object):
 				for k in range(len(dipole_z)):
 					z=dipole_z[k]
 					for ori in ['x','y','z']:
+						if ori in omit_ori: continue
 						pos=[x,y,z]
 						dpn=dipole_name(monitor_name,i,j,k,ori)
 						dipole_sources.append(dpn)
@@ -215,6 +210,7 @@ class FieldIntensity(object):
 
 	@staticmethod
 	def set_dipoles_on_monitor(sim,monitor_E_field,dipole_names):
+
 		Ec=np.conj(monitor_E_field['E'])
 		xE=monitor_E_field['x']
 		yE=monitor_E_field['y']
@@ -240,7 +236,7 @@ class FieldIntensity(object):
 
 			Edip=Ec[xarg,yarg,zarg,0,l]
 			amplitude=np.abs(Edip)
-			phase= np.angle(Edip)*(360/(2*np.pi))
+			phase= np.angle(Edip,deg=True)
 
 			sim.fdtd.set('amplitude',amplitude)
 			sim.fdtd.set('phase',phase)
