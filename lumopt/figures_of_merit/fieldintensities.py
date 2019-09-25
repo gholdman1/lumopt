@@ -10,16 +10,18 @@ class FieldIntensity(object):
 	A figure of merit which is simply the average |E|^2 in a monitor.
 	'''
 
-	def __init__(self, monitor_name,wavelengths,subspace=None):
+	def __init__(self, monitor_name,wavelengths,subspace=None,dipole_inc=1):
 		'''
 		:param monitor_name: A string: the name of the point monitor
 		:param wavelengths: A list of the wavelengths of interest (for the moment supports only a single value)
 		:param subspace: A string giving the subspace in which to optimize intensity. 'None' means absolute intensity, 'xy' intensity in xy-plane, 'x' intensity in x-axis etc.
+		:param dipole_inc: Include ever dipole_inc dipoles on the monitor. E.g. dipole_inc=2 places dipole at every other position on monitor.
 		'''
 		self.monitor_name = monitor_name
 		self.wavelengths = wavelengths
 		self.multi_freq_src=False
 		self.subspace=subspace
+		self.dipole_inc=dipole_inc
 
 	def initialize(self,sim):
 		self.add_adjoint_sources(sim)
@@ -94,7 +96,7 @@ class FieldIntensity(object):
 		omit=oris.replace(self.subspace,'') # only dirs outside subspace retained for omission
 
 
-		self.adjoint_source_names=FieldIntensity.add_dipoles_on_monitor(sim,monitor_name,omit_ori=omit)
+		self.adjoint_source_names=FieldIntensity.add_dipoles_on_monitor(sim,monitor_name,omit_ori=omit,dipole_inc=self.dipole_inc)
 
 		return
 		
@@ -135,12 +137,13 @@ class FieldIntensity(object):
 		return E_fwd_partial_derivs.flatten().real
 
 	@staticmethod
-	def add_dipoles_on_monitor(sim,monitor_name,omit_ori=None):
+	def add_dipoles_on_monitor(sim,monitor_name,omit_ori=None,dipole_inc=1):
 		'''
 		Adds 3 dipoles (on in each direction) to every point on a monitor.
 		Returns their names.
 		:param monitor_name: string, monitor on which to place dipoles
 		:param omit_ori: orientations to omit.
+
 		'''
 
 		# Possible dipole positions, i.e. all mesh positions
@@ -183,7 +186,10 @@ class FieldIntensity(object):
 			dipole_y=mesh_y[greater & lesser]
 			dipole_z=[mesh_z[np.argmin(np.abs(monitor_z-mesh_z))]]
 
-
+		# Include every dipole_inc positions
+		dipole_x=dipole_x[::dipole_inc]
+		dipole_y=dipole_y[::dipole_inc]
+		dipole_z=dipole_z[::dipole_inc]
 
 		# Dipole positions have been defined
 		# Now iterate through them
