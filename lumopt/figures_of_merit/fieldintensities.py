@@ -10,7 +10,7 @@ class FieldIntensity(object):
 	A figure of merit which is simply the average |E|^2 in a monitor.
 	'''
 
-	def __init__(self, monitor_name,wavelengths,subspace=None,dipole_inc=1):
+	def __init__(self, monitor_name,wavelengths,subspace='xyz',dipole_inc=1):
 		'''
 		:param monitor_name: A string: the name of the point monitor
 		:param wavelengths: A list of the wavelengths of interest (for the moment supports only a single value)
@@ -55,8 +55,8 @@ class FieldIntensity(object):
 		numwls=shape[3]
 		E2 = np.empty(shape[:4])
 
-
 		for l in range(numwls):
+
 			E=self.forward_field['E']
 
 			E2x=('x' in self.subspace)*np.conj(E[:,:,:,l,0])*E[:,:,:,l,0]
@@ -94,7 +94,6 @@ class FieldIntensity(object):
 		# Choose orientations to omit
 		oris='xyz'
 		omit=oris.replace(self.subspace,'') # only dirs outside subspace retained for omission
-
 
 		self.adjoint_source_names=FieldIntensity.add_dipoles_on_monitor(sim,monitor_name,omit_ori=omit,dipole_inc=self.dipole_inc)
 
