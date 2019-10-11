@@ -8,6 +8,8 @@ from lumopt.utilities.wavelengths import Wavelengths
 class FieldIntensity(object):
 	'''
 	A figure of merit which is simply the average |E|^2 in a monitor.
+
+	Original code provided by Christophere Lalau-Keraly. Adapted to the latest version of LumOpt.
 	'''
 
 	def __init__(self, monitor_name,wavelengths,subspace='xyz',dipole_inc=1):
